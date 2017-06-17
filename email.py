@@ -58,27 +58,28 @@ for g in args.glob:
 				self.interested=False
 				self.bad_encoding=False
 				self.items=collections.defaultdict(lambda: collections.defaultdict(list))
+			def datestring(self):
+				return '{}-{:0>2}-{:0>2}'.format(*self.date)
 		state=State()
 		if not args.start: state.interested=True
 		import re
 		for i_line, line in enumerate(lines):
 			#print('line {}: {}'.format('x' if state.interested else ' ', line.strip()))
 			#date
-			df='{}-{:0>2}-{:0>2}'
 			def month_n(abbr):
 				import calendar
 				return list(calendar.month_abbr).index(abbr.capitalize())
 			no_date=state.date==None
 			m=re.match('Date: ([0-9]+)/([0-9]+)/([0-9:]+)', line)
-			if m: state.date=df.format(m.group(3), m.group(1), m.group(2))
+			if m: state.date=[m.group(3), m.group(1), m.group(2)]
 			m=re.match('Date: .*, ([0-9]+) ([A-Za-z]+) ([0-9:]+)', line)
-			if m: state.date=df.format(m.group(3), month_n(m.group(2)), m.group(1))
+			if m: state.date=[m.group(3), month_n(m.group(2)), m.group(1)]
 			m=re.match('date: ([0-9]+) ([a-z]+) ([0-9]+)', line)
-			if m: state.date=df.format(m.group(1), month_n(m.group(2)), m.group(3))
+			if m: state.date=[state.date[0], month_n(m.group(2)), m.group(3)]
 			m=re.match('Subject: .* ([0-9]+) ([a-z]+) ([0-9]+)', line)
-			if m: state.date=df.format(m.group(1), month_n(m.group(2)), m.group(3))
+			if m: state.date=[m.group(1), month_n(m.group(2)), m.group(3)]
 			if no_date and state.date:
-				print('date: {} line: {}/{}'.format(state.date, i_line+1, len(lines)))
+				print('date: {} line: {}/{}'.format(state.datestring(), i_line+1, len(lines)))
 			#encoding
 			m=re.match('Content-Type: ([^;]*);', line)
 			if m: state.bad_encoding=m.group(1)!='text/plain'
@@ -93,7 +94,7 @@ for g in args.glob:
 						print('no date!')
 						pprint.pprint(state.items)
 					else:
-						history[state.date].update(state.items)
+						history[state.datestring()].update(state.items)
 					state.reset()
 					continue
 				for item in line.split(args.split):
@@ -121,7 +122,7 @@ for g in args.glob:
 							while True:
 								print('regex? ')
 								regex=input()
-								if not regex: regex=re.sub(r'(\?|\.|\+|\(|\))', r'\\\1', item)
+								if not regex: regex=re.sub(r'(\?|\.|\+|\(|\)|\[|\])', r'\\\1', item)
 								try:
 									if re.search(regex, item): break
 									else: print('regex does not match')
