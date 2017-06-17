@@ -1,11 +1,15 @@
 import collections, glob, pprint
 
-try: input=raw_input()
+try: input=raw_input
 except: pass
 
 import argparse
 parser=argparse.ArgumentParser(
-	description='process a series of emails exported as plain text by ImportExportTools addon for Thunderbird'
+	description=(
+		'Process a series of emails exported '
+		'as plain text by ImportExportTools addon for Thunderbird '
+		'or as mbox format by gmail takeout. '
+	)
 )
 parser.add_argument('glob', nargs='+', help='glob of email files')
 parser.add_argument('--start', help='regex of start of interesting section')
@@ -39,22 +43,46 @@ for g in args.glob:
 	for filename in glob.glob(g):
 		i+=1
 		print('{}/{} {}'.format(i, total, filename))
-		with open(filename, encoding='utf-8') as file: lines=file.readlines()
-		date=None
-		interested=False
-		items=collections.defaultdict(lambda: collections.defaultdict(list))
-		if not args.start: interested=True
+		with open(filename) as file: lines=file.readlines()
+		class State:
+			def __init__(self): self.reset()
+			def reset(self):
+				self.date=None
+				self.interested=False
+				self.items=collections.defaultdict(lambda: collections.defaultdict(list))
+		state=State()
+		if not args.start: state.interested=True
 		import re
 		for line in lines:
-			if not date:
-				if line.startswith('Date: '):
-					match=re.match('Date: ([0-9]+)/([0-9]+)/([0-9:]+)', line)
-					date='{}-{:0>2}-{:0>2}'.format(match.group(3), match.group(1), match.group(2))
-			elif not interested:
+			#print('line {}: {}'.format('x' if state.interested else ' ', line.strip()))
+			#date
+			df='{}-{:0>2}-{:0>2}'
+			def month_n(abbr):
+				import calendar
+				return list(calendar.month_abbr).index(abbr.capitalize())
+			no_date=state.date==None
+			m=re.match('Date: ([0-9]+)/([0-9]+)/([0-9:]+)', line)
+			if m: state.date=df.format(m.group(3), m.group(1), m.group(2))
+			m=re.match('Date: .*, ([0-9]+) ([A-Za-z]+) ([0-9:]+)', line)
+			if m: state.date=df.format(m.group(3), month_n(m.group(2)), m.group(1))
+			m=re.match('date: ([0-9]+) ([a-z]+) ([0-9]+)', line)
+			if m: state.date=df.format(m.group(1), month_n(m.group(2)), m.group(3))
+			m=re.match('Subject: .* ([0-9]+) ([a-z]+) ([0-9]+)', line)
+			if m: state.date=df.format(m.group(1), month_n(m.group(2)), m.group(3))
+			if no_date and state.date: print(state.date)
+			#interest
+			if not state.interested:
 				if re.search(args.start, line):
-					interested=True
+					state.interested=True
 			else:
-				if args.end and re.search(args.end, line): break
+				if args.end and re.search(args.end, line):
+					if state.date==None:
+						print('no date!')
+						pprint.pprint(state.items)
+					else:
+						history[state.date].update(state.items)
+					state.reset()
+					continue
 				for item in line.split(args.split):
 					item=item.lower().strip()
 					if not item: continue
@@ -86,12 +114,11 @@ for g in args.glob:
 						keywords.append(keyword)
 					#update items
 					if not keywords: keywords.append(None)
-					for keyword in keywords: items[keyword][item].append(line.strip())
-		history[date].update(items)
+					for keyword in keywords: state.items[keyword][item].append(line.strip())
 write_key()
-with open(args.output, 'w', encoding='utf-8') as file: file.write(pprint.pformat(history))
+with open(args.output, 'w') as file: file.write(pprint.pformat(history))
 heatFilename='heat.'+args.output
-with open(heatFilename, 'w', encoding='utf-8') as file:
+with open(heatFilename, 'w') as file:
 	file.write('begin\n')
 	index=[]
 	for date, items in sorted(history.items(), key=lambda x: x[0]):
@@ -107,10 +134,11 @@ with open(heatFilename, 'w', encoding='utf-8') as file:
 		return (datetime.strptime(date, '%Y-%m-%d')-datetime.utcfromtimestamp(0)).days
 	for date, items in history.items():
 		for item, lines in items.items():
-			file.write('hover {} {} {}\n'.format(to_days(date), index[item], '{}\n{}\n'.format(item, '\n'.join(lines))))
+			file.write('hover {} {} {}\n'.format(to_days(date), index[item], '{} {}\n{}\n'.format(item, date, '\n'.join(lines))))
 	file.write('end\n')
 	for date, items in history.items():
 		for item, lines in items.items():
 			file.write('{} {}\n'.format(to_days(date), index[item]))
-import subprocess
-subprocess.call('python ../plotstuff/go.py --type heat '+heatFilename, shell=True)
+import os, subprocess
+plotstuff=os.environ.get('PLOTSTUFF', '../plotstuff/go.py')
+subprocess.call('python {} --type heat {}'.format(plotstuff, heatFilename), shell=True)
