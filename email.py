@@ -56,11 +56,12 @@ for g in args.glob:
 			def reset(self):
 				self.date=None
 				self.interested=False
+				self.bad_encoding=False
 				self.items=collections.defaultdict(lambda: collections.defaultdict(list))
 		state=State()
 		if not args.start: state.interested=True
 		import re
-		for line in lines:
+		for i_line, line in enumerate(lines):
 			#print('line {}: {}'.format('x' if state.interested else ' ', line.strip()))
 			#date
 			df='{}-{:0>2}-{:0>2}'
@@ -76,7 +77,12 @@ for g in args.glob:
 			if m: state.date=df.format(m.group(1), month_n(m.group(2)), m.group(3))
 			m=re.match('Subject: .* ([0-9]+) ([a-z]+) ([0-9]+)', line)
 			if m: state.date=df.format(m.group(1), month_n(m.group(2)), m.group(3))
-			if no_date and state.date: print(state.date)
+			if no_date and state.date:
+				print('date: {} line: {}/{}'.format(state.date, i_line+1, len(lines)))
+			#encoding
+			m=re.match('Content-Type: ([^;]*);', line)
+			if m: state.bad_encoding=m.group(1)!='text/plain'
+			if state.bad_encoding: continue
 			#interest
 			if not state.interested:
 				if re.search(args.start, line):
@@ -109,13 +115,17 @@ for g in args.glob:
 								break
 						if not should_ignore:
 							print('unkeyed item encountered: {}'.format(item.encode()))
+							print('context')
+							for context_line in lines[:i_line+1][-4:]: print(context_line.rstrip())
 							#regex
 							while True:
 								print('regex? ')
 								regex=input()
 								if not regex: regex=re.sub(r'(\?|\.|\+|\(|\))', r'\\\1', item)
-								if re.search(regex, item): break
-								else: print('regex does not match')
+								try:
+									if re.search(regex, item): break
+									else: print('regex does not match')
+								except Exception as e: print(e)
 							#new key
 							print('keyword? ')
 							keyword=input()
