@@ -18,6 +18,7 @@ parser.add_argument('--split', help='what to split lines with', default=' ')
 parser.add_argument('--output', default='out.txt')
 parser.add_argument('--keygen', action='store_true', help='prompt when unkeyed item is encountered')
 parser.add_argument('--key', default='key.txt', help='file associated with keygen')
+parser.add_argument('--ignore', default='ignore.txt', help='file containing terms to ignore')
 args=parser.parse_args()
 
 print('globs: '+str(args.glob))
@@ -29,13 +30,19 @@ key=collections.defaultdict(list)
 if args.key:
 	try:
 		with open(args.key) as file: key.update(eval(file.read()))
-	except FileNotFoundError: pass
+	except: pass
+ignore=[]
+if args.ignore:
+	try:
+		with open(args.ignore) as file: ignore=eval(file.read())
+	except: pass
 
 total=0
 for g in args.glob: total+=len(glob.glob(g))
 
 def write_key():
 	with open(args.key, 'w') as file: file.write(pprint.pformat(dict(key)))
+	with open(args.ignore, 'w') as file: file.write(pprint.pformat(ignore))
 
 history=collections.defaultdict(dict)
 i=0
@@ -95,23 +102,29 @@ for g in args.glob:
 								break
 					#keygen
 					if not keywords and args.keygen:
-						print('unkeyed item encountered: {}'.format(item.encode()))
-						#regex
-						while True:
-							print('regex? ')
-							regex=input()
-							if not regex: regex=re.sub(r'(\?|\.|\+|\(|\))', r'\\\1', item)
-							if re.search(regex, item): break
-							else: print('regex does not match')
-						#new key
-						while True:
+						should_ignore=False
+						for regex in ignore:
+							if re.search(regex, item):
+								should_ignore=True
+								break
+						if not should_ignore:
+							print('unkeyed item encountered: {}'.format(item.encode()))
+							#regex
+							while True:
+								print('regex? ')
+								regex=input()
+								if not regex: regex=re.sub(r'(\?|\.|\+|\(|\))', r'\\\1', item)
+								if re.search(regex, item): break
+								else: print('regex does not match')
+							#new key
 							print('keyword? ')
 							keyword=input()
-							if keyword: break
-							else: import pdb; pdb.set_trace()
-						key[keyword].append(regex)
-						write_key()
-						keywords.append(keyword)
+							if keyword:
+								key[keyword].append(regex)
+								keywords.append(keyword)
+							else:
+								ignore.append(regex)
+							write_key()
 					#update items
 					if not keywords: keywords.append(None)
 					for keyword in keywords: state.items[keyword][item].append(line.strip())
