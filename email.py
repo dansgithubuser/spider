@@ -45,6 +45,7 @@ def write_key():
 	with open(args.ignore, 'w') as file: file.write(pprint.pformat(ignore))
 
 history=collections.defaultdict(dict)
+date_to_interesting=collections.defaultdict(list)
 i=0
 for g in args.glob:
 	for filename in glob.glob(g):
@@ -97,6 +98,8 @@ for g in args.glob:
 						history[state.datestring()].update(state.items)
 					state.reset()
 					continue
+				x=line.rstrip()
+				if x: date_to_interesting[state.datestring()].append(x)
 				for item in line.split(args.split):
 					item=item.lower().strip()
 					if not item: continue
@@ -153,16 +156,21 @@ with open(heatFilename, 'w') as file:
 		import synesthesia
 		r, g, b, a=synesthesia.color(str(item))
 		file.write('ycolor {} {} {} {} 255\n'.format(i, r, g, b))
+	file.write('ycolor -1 255 255 255 255\n')
 	def to_days(date):
 		from datetime import datetime
 		return (datetime.strptime(date, '%Y-%m-%d')-datetime.utcfromtimestamp(0)).days
 	for date, items in history.items():
 		for item, lines in items.items():
 			file.write('hover {} {} {}\n'.format(to_days(date), index[item], '{} {}\n{}\n'.format(item, date, '\n'.join(lines))))
+	for date, interesting in date_to_interesting.items():
+		file.write('hover {} {} {}\n'.format(to_days(date), -1, '{}\n{}\n'.format(date, '\n'.join(interesting))))
 	file.write('end\n')
 	for date, items in history.items():
 		for item, lines in items.items():
 			file.write('{} {}\n'.format(to_days(date), index[item]))
+	for date in date_to_interesting:
+		file.write('{} -1\n'.format(to_days(date)))
 import os, subprocess
 plotstuff=os.environ.get('PLOTSTUFF', '../plotstuff/go.py')
 subprocess.call('python {} --type heat {}'.format(plotstuff, heatFilename), shell=True)
