@@ -3,6 +3,9 @@ parser=argparse.ArgumentParser(description='tools for working with downloaded co
 parser.add_argument('path', help='path to root of facebook data download (unzipped)')
 parser.add_argument('--word-frequency', '--wf', action='store_true', help='count word frequency in messages')
 parser.add_argument('--word-frequency-user', '--wfu', help='user to get word frequency for, default all users')
+parser.add_argument('--messages-from-user', '--mfu', help='print message from user')
+parser.add_argument('--messsage-from-user-start', '--mfus', help='index of first message to print')
+parser.add_argument('--messages-from-user-finish', '--mfuf', help='index of last message to print')
 args=parser.parse_args()
 
 from html.parser import HTMLParser
@@ -51,5 +54,13 @@ if args.word_frequency:
 	wordcount.sort(key=lambda x: x[1])
 	with open('wc.txt', 'w') as file:
 		for word, count in wordcount: file.write(word+' '+str(count)+'\n')
+
+if args.messages_from_user:
+	class Parser(MessageParser):
+		def handle_message(self, message):
+			print(message)
+
+	parser=Parser(args.messages_from_user)
+	parser.go()
 
 print('all requests processed; call with -h for help')
