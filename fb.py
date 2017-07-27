@@ -10,7 +10,7 @@ if args.word_frequency:
 	from html.parser import HTMLParser
 	class MessageParser(HTMLParser):
 		def __init__(self, desired_user):
-			super().__init__()
+			HTMLParser.__init__(self)
 			self.desired_user=desired_user
 			self.stack=[]
 			self.user=None
@@ -36,10 +36,10 @@ if args.word_frequency:
 
 	parser=MessageParser(args.word_frequency_user)
 	import os
-	with open(os.path.join(args.path, 'html', 'messages.htm'), encoding='utf8') as file: parser.feed(file.read())
+	with open(os.path.join(args.path, 'html', 'messages.htm')) as file: parser.feed(file.read())
 	wordcount=list(parser.wordcount.items())
 	wordcount.sort(key=lambda x: x[1])
-	with open('wc.txt', 'w', encoding='utf8') as file:
+	with open('wc.txt', 'w') as file:
 		for word, count in wordcount: file.write(word+' '+str(count)+'\n')
 
 print('all requests processed; call with -h for help')
