@@ -69,7 +69,7 @@ for g in args.glob:
 			#date
 			def month_n(abbr):
 				import calendar
-				return list(calendar.month_abbr).index(abbr.capitalize())
+				return list(calendar.month_abbr).index(abbr.capitalize()[:3])
 			no_date=state.date==None
 			m=re.match('Date: ([0-9]+)/([0-9]+)/([0-9:]+)', line)
 			if m: state.date=[m.group(3), m.group(1), m.group(2)]
